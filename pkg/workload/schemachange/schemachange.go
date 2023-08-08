@@ -22,6 +22,7 @@ import (
 	"os"
 	"regexp"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/sql/pgwire/pgcode"
@@ -267,8 +268,8 @@ func (s *schemaChange) Ops(
 // cluster.
 func (s *schemaChange) initSeqNum(
 	ctx context.Context, pool *workload.MultiConnPool,
-) (*int64, error) {
-	seqNum := new(int64)
+) (*atomic.Int64, error) {
+	var seqNum atomic.Int64
 
 	const q = `
 SELECT max(regexp_extract(name, '[0-9]+$')::INT8)
@@ -291,10 +292,10 @@ SELECT max(regexp_extract(name, '[0-9]+$')::INT8)
 		return nil, err
 	}
 	if max.Valid {
-		*seqNum = max.Int64 + 1
+		seqNum.Store(max.Int64 + 1)
 	}
 
-	return seqNum, nil
+	return &seqNum, nil
 }
 
 type schemaChangeWorker struct {
